@@ -375,6 +375,7 @@ class FFF(nn.Module):
 			current_nodes = (current_nodes - platform) * 2 + plane_choices + next_platform	# (batch_size,)
 
 		leaves = current_nodes - next_platform				# (batch_size,)
+		self.leaves = leaves.detach()
 		new_logits = torch.empty((batch_size, self.output_width), dtype=torch.float, device=x.device)
 		for i in range(leaves.shape[0]):
 			leaf_index = leaves[i]

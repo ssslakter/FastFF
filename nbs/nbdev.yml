@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "FastFF"
+  site-url: "https://Ssslakter.github.io/FastFF"
+  description: "Some FFF experiments"
+  repo-branch: main
+  repo-url: "https://github.com/Ssslakter/FastFF"

@@ -1,0 +1,6 @@
+website:
+  sidebar:
+    contents:
+      - index.ipynb
+      - 00_mnist.ipynb
+      - 01_tree.ipynb
