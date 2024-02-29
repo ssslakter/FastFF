@@ -289,7 +289,7 @@ class FFF(nn.Module):
 		else:
 			return final_logits, entropies.mean(dim=0)
 		
-	def forward(self, x: torch.Tensor, return_entropies: bool=False, use_hard_decisions: Optional[bool]=None):
+	def forward(self, x: torch.Tensor, return_entropies: bool=False, use_hard_decisions: Optional[bool]=None, skip_out=False):
 		"""
 		Computes the forward pass of this FFF.
 		If `self.training` is True, `training_forward()` will be called, otherwise `eval_forward()` will be called.
@@ -336,9 +336,9 @@ class FFF(nn.Module):
 				raise ValueError("Cannot return entropies during evaluation.")
 			if use_hard_decisions is not None and not use_hard_decisions:
 				raise ValueError("Cannot use soft decisions during evaluation.")
-			return self.eval_forward(x)
+			return self.eval_forward(x, skip_out)
 
-	def eval_forward(self, x: torch.Tensor) -> torch.Tensor:
+	def eval_forward(self, x: torch.Tensor, skip_out=False) -> torch.Tensor:
 		"""
 		Computes the forward pass of this FFF during evaluation (i.e. making hard decisions at each node and traversing the FFF in logarithmic time).
 
@@ -376,6 +376,7 @@ class FFF(nn.Module):
 
 		leaves = current_nodes - next_platform				# (batch_size,)
 		self.leaves = leaves.detach()
+		if skip_out: return leaves
 		new_logits = torch.empty((batch_size, self.output_width), dtype=torch.float, device=x.device)
 		for i in range(leaves.shape[0]):
 			leaf_index = leaves[i]

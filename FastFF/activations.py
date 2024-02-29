@@ -6,10 +6,11 @@ __all__ = ['Activations2D', 'num_params', 'LeavesColors', 'conv']
 # %% ../nbs/00_mnist.ipynb 2
 import math, torch, matplotlib as mpl, matplotlib.pyplot as plt
 from torch import nn
+import matplotlib.colors as mcolors
 from fastai.vision.all import *
 from . import fff, ultrafastbert
 
-# %% ../nbs/00_mnist.ipynb 17
+# %% ../nbs/00_mnist.ipynb 18
 class Activations2D(HookCallback):
     def __init__(self, module = None, **kwargs):
         super().__init__([module], **kwargs)
@@ -33,7 +34,7 @@ class Activations2D(HookCallback):
         if ax is None: _, ax = plt.subplots(figsize=figsize)
         u = self.targets.unique()
         norm = mpl.colors.Normalize(vmin=0, vmax=len(u)-1)
-        if not isinstance(cmap,mpl.colors.Colormap): cmap = plt.get_cmap(cmap)
+        if not isinstance(cmap,mcolors.Colormap): cmap = plt.get_cmap(cmap)
         colors = cmap(norm(range(len(u))))
         for col, l in zip(colors,u):
             xs = self.activations[self.targets==l]
@@ -41,11 +42,12 @@ class Activations2D(HookCallback):
         ax.set_title('2D activations')
         ax.legend()
 
-# %% ../nbs/00_mnist.ipynb 25
+# %% ../nbs/00_mnist.ipynb 26
 def num_params(model): return sum(p.numel() for p in model.parameters())
 
-# %% ../nbs/00_mnist.ipynb 30
+# %% ../nbs/00_mnist.ipynb 31
 class LeavesColors(Activations2D):
+    '''Gets points from `module` output and colors from `fff_module` corresponding to leaves'''
     def __init__(self, module = None, fff_module = None, **kwargs):
         assert isinstance(fff_module,fff.FFF)
         self.fff_module = fff_module
@@ -55,7 +57,7 @@ class LeavesColors(Activations2D):
         self.activations.append(self.hooks.stored[0])
         self.targets.append(self.fff_module.leaves)
 
-# %% ../nbs/00_mnist.ipynb 42
+# %% ../nbs/00_mnist.ipynb 43
 def conv(ni, nf, ks=3, stride=2, act=nn.PReLU):
     res = nn.Conv2d(ni, nf, stride=stride, kernel_size=ks, padding=ks//2)
     if act: res = nn.Sequential(res, act())
