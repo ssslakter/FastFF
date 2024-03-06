@@ -29,13 +29,16 @@ def run_sweep(train_ds, test_ds, prm_model,sweep_cfg,
 
 # %% ../nbs/02_performance.ipynb 17
 class FFFLeavesDistCB(Callback):
-    def __init__(self, use_wandb=False):
+    def __init__(self, use_wandb=False, module=None):
+        self.module = module
         self.wandb = use_wandb
  
     def before_fit(self): 
-        self.total_leaves = getattr(self.learn.model, 'total_leaves', None)
+        self.module = ifnone(self.module, self.learn.model)
+        self.total_leaves = getattr(self.module, 'total_leaves', None)
         if self.wandb: self._wandb_step = wandb.run.step - 1
         self.data = []
+
     def before_epoch(self): 
         self.tree_leaves, self.preds = [], []
         self.xs, self.ys = [], []
@@ -43,7 +46,7 @@ class FFFLeavesDistCB(Callback):
     def after_batch(self): 
         if self.training: 
             if self.wandb:  self._wandb_step += 1
-            self.tree_leaves.append(self.learn.leaves.argmax(1))
+            self.tree_leaves.append(self.module.leaves.argmax(1))
             self.preds.append(self.pred.argmax(1))
             self.xs.append(self.xb[0]), self.ys.append(self.yb[0])
     
