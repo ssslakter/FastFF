@@ -37,12 +37,13 @@ def get_mask(xb: Tensor,    # input tensor of shape (b_size, n_inp)
 
 # %% ../nbs/01_tree.ipynb 20
 def get_leaves(module, x_lim=(-10,10), n= 500):
-    module.eval()
+    module.eval(); module.skip_out = True
     x_lin = torch.linspace(*x_lim, n)
     X, Y = torch.meshgrid(x_lin, x_lin, indexing='xy')
     xs = to_device(torch.stack([X,Y],dim=2).view(-1,X.shape[0],2), module.w1s.device)
     with torch.no_grad(): 
-        Z = torch.stack([module(b,skip_out=True) for b in xs]).view(X.shape)
+        Z = torch.stack([module(b) for b in xs]).view(X.shape)
+    module.skip_out = False
     return X,Y,Z
     
 def plot_contour(X,Y,Z, ax=None, cmap = 'plasma', figsize=(6,4), **kwargs):

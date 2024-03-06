@@ -9,7 +9,8 @@ conda/
 _site/
 _docs/
 test_settings.ini
-
+**/wandb
+.history
 *.bak
 .gitattributes
 .last_checked

@@ -30,7 +30,7 @@ class Activations2D(HookCallback):
         self.activations, self.targets = torch.cat(self.activations), torch.cat(self.targets)
         super().after_fit()
     
-    def show_acts(self, ax=None, figsize=(10,5), alpha=0.6, s=5, cmap='tab10', **kwargs):
+    def show_acts(self, prj_idxs=(0,1), ax=None, figsize=(10,5), alpha=0.6, s=5, cmap='tab10', **kwargs):
         if ax is None: _, ax = plt.subplots(figsize=figsize)
         u = self.targets.unique()
         norm = mpl.colors.Normalize(vmin=0, vmax=len(u)-1)
@@ -38,7 +38,7 @@ class Activations2D(HookCallback):
         colors = cmap(norm(range(len(u))))
         for col, l in zip(colors,u):
             xs = self.activations[self.targets==l]
-            ax.scatter(xs[:,0], xs[:,1], alpha=alpha, color=col, label=l.item(), s=s, **kwargs)
+            ax.scatter(xs[:,prj_idxs[0]], xs[:,prj_idxs[1]], alpha=alpha, color=col, label=l.item(), s=s, **kwargs)
         ax.set_title('2D activations')
         ax.legend()
 

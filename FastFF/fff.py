@@ -88,6 +88,7 @@ class FFF(nn.Module):
 		self.train_hardened = train_hardened
 		self.region_leak = region_leak
 		self.usage_mode = usage_mode
+		self.skip_out = False
 
 		if depth < 0 or input_width <= 0 or leaf_width <= 0 or output_width <= 0:
 			raise ValueError("input/leaf/output widths and depth must be all positive integers")
@@ -265,7 +266,7 @@ class FFF(nn.Module):
 			else:
 				current_leaf_usage = current_mixture.sum(dim=0)					# (n_leaves,)
 			self.leaf_usage.data += current_leaf_usage.detach()
-
+		self.leaves = current_mixture.detach()
 		element_logits = torch.matmul(x, self.w1s.transpose(0, 1).flatten(1, 2))			# (batch_size, self.n_leaves * self.leaf_width)
 		element_logits = element_logits.view(batch_size, self.n_leaves, self.leaf_width)	# (batch_size, self.n_leaves, self.leaf_width)
 		element_logits += self.b1s.view(1, *self.b1s.shape)									# (batch_size, self.n_leaves, self.leaf_width)
@@ -289,7 +290,7 @@ class FFF(nn.Module):
 		else:
 			return final_logits, entropies.mean(dim=0)
 		
-	def forward(self, x: torch.Tensor, return_entropies: bool=False, use_hard_decisions: Optional[bool]=None, skip_out=False):
+	def forward(self, x: torch.Tensor, return_entropies: bool=False, use_hard_decisions: Optional[bool]=None):
 		"""
 		Computes the forward pass of this FFF.
 		If `self.training` is True, `training_forward()` will be called, otherwise `eval_forward()` will be called.
@@ -336,9 +337,9 @@ class FFF(nn.Module):
 				raise ValueError("Cannot return entropies during evaluation.")
 			if use_hard_decisions is not None and not use_hard_decisions:
 				raise ValueError("Cannot use soft decisions during evaluation.")
-			return self.eval_forward(x, skip_out)
+			return self.eval_forward(x)
 
-	def eval_forward(self, x: torch.Tensor, skip_out=False) -> torch.Tensor:
+	def eval_forward(self, x: torch.Tensor) -> torch.Tensor:
 		"""
 		Computes the forward pass of this FFF during evaluation (i.e. making hard decisions at each node and traversing the FFF in logarithmic time).
 
@@ -376,7 +377,7 @@ class FFF(nn.Module):
 
 		leaves = current_nodes - next_platform				# (batch_size,)
 		self.leaves = leaves.detach()
-		if skip_out: return leaves
+		if self.skip_out: return leaves
 		new_logits = torch.empty((batch_size, self.output_width), dtype=torch.float, device=x.device)
 		for i in range(leaves.shape[0]):
 			leaf_index = leaves[i]
