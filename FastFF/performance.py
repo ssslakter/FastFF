@@ -14,7 +14,7 @@ def run_sweep(train_ds, test_ds, prm_model,sweep_cfg,
               loss = F.cross_entropy,
               opt = Adam,
               cfg = None,
-              cbs=[WandbCallback()], project=None, count=5, seed=0):
+              before_learn_cb=None, project=None, count=5, seed=0):
     def _f(cfg=cfg):
         with wandb.init(config=cfg):
             if seed is not None: set_seed(seed)
@@ -22,14 +22,17 @@ def run_sweep(train_ds, test_ds, prm_model,sweep_cfg,
             model = prm_model(**cfg.model)
             dls = DataLoaders(TfmdDL(train_ds, cfg.bs, True),TfmdDL(test_ds, cfg.bs, False))
             learn = Learner(dls, model, loss_func=loss, metrics=metrics, opt_func = opt)
-            learn.fit_one_cycle(cfg.epochs, **cfg.learn, cbs=cbs)
+            if before_learn_cb: before_learn_cb(learn, model, dls)
+            learn.fit_one_cycle(cfg.epochs, **cfg.learn)
     
     sweep_id = wandb.sweep(sweep_cfg, project=project)
     wandb.agent(sweep_id, _f, count=count)
 
-# %% ../nbs/02_performance.ipynb 17
+# %% ../nbs/02_performance.ipynb 16
 class FFFLeavesDistCB(Callback):
-    def __init__(self, use_wandb=False, module=None):
+    '''Gets data from leaves of FFF module and logs to wandb if enabled'''
+    def __init__(self, use_wandb=False, module=None, sample_size=30):
+        self.sample_size = sample_size
         self.module = module
         self.wandb = use_wandb
  
@@ -49,7 +52,7 @@ class FFFLeavesDistCB(Callback):
             self.tree_leaves.append(self.module.leaves.argmax(1))
             self.preds.append(self.pred.argmax(1))
             self.xs.append(self.xb[0]), self.ys.append(self.yb[0])
-    
+             
     def after_epoch(self):
         leaves, preds = torch.cat(self.tree_leaves),torch.cat(self.preds)
         xs, ys = torch.cat(self.xs), torch.cat(self.ys)
@@ -61,13 +64,23 @@ class FFFLeavesDistCB(Callback):
             fig.legend(handles, labels)
             wandb.log({"Leaf distribution": fig}, step = self._wandb_step)
     
+    def after_fit(self):
+        leaves = torch.cat(self.tree_leaves)
+        idx = torch.randperm(leaves.size(0))[:self.sample_size]
+        xs, ys, preds = torch.cat(self.xs), torch.cat(self.ys), torch.cat(self.preds)
+        xs, ys, preds, leaves = xs[idx], ys[idx], preds[idx], leaves[idx]
+        if self.wandb:
+            cols = ['leaf','image','pred','target']
+            data = [[l,wandb.Image(i.view(28,28)),p,y] for l,i,p,y in zip(leaves,xs,preds,ys)]
+            wandb.log({"samples": wandb.Table(data=data, columns=cols)})
+    
     def leaf_hist(self, epoch_idx, ax=None, show=True):
-        leaves, preds = self.data[epoch_idx][2], self.data[epoch_idx][1]
+        leaves, lbls = self.data[epoch_idx][2], self.data[epoch_idx][1]
         if not self.total_leaves: self.total_leaves = leaves.unique().max()+1
         if not ax: ax = subplots()[1][0]
         bottom, bins = torch.zeros(self.total_leaves), L(range(self.total_leaves)).map(str)
         for d in range(10):
-            hist = torch.bincount(leaves[preds==d], minlength=self.total_leaves)
+            hist = torch.bincount(leaves[lbls==d], minlength=self.total_leaves)
             ax.bar(bins, hist, label=str(d),bottom=bottom)
             bottom += hist
         if show: 
