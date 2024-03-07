@@ -4,4 +4,5 @@ website:
       - index.ipynb
       - 00_mnist.ipynb
       - 01_tree.ipynb
-      - 02_moe.ipynb
+      - 02_performance.ipynb
+      - 03_moe.ipynb
