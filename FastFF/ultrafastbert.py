@@ -55,6 +55,7 @@ class FFF(nn.Module):
 				current_nodes = next_nodes
 		# decision map has 1 on indices of nodes on path which sample took, 0 otherwise
 		activations = activations * decision_map # (batch_size, parallel_size, n_nodes)
+		self.decision_map = decision_map.detach()
 		new_logits = self.linear_out(activations.flatten(1, 2)) # (batch_size, output_width)
 
 		return new_logits
