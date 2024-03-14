@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn, torch.nn.functional as F
 from fastcore.all import *
 
-# %% ../nbs/04_fff.ipynb 3
+# %% ../nbs/04_fff.ipynb 4
 class FFF(nn.Module):
     def __init__(self, in_dim, out_dim, depth, act=nn.ReLU, hidden_dim = None):
         super().__init__()
@@ -18,16 +18,41 @@ class FFF(nn.Module):
         self.leaves = nn.Linear(in_dim, ifnone(hidden_dim, out_dim)*self.n_leaves)
         if hidden_dim: self.leaves_out = nn.ModuleList(nn.Linear(hidden_dim, out_dim) for _ in range(self.n_leaves))
         self.act = act() if act else noop
-    
-    def forward(self, x):
+ 
+    def forward(self, x): return self.train_forward(x) if self.training else self.eval_forward(x)
+
+    def train_forward(self, x):
         bs = x.shape[0]
-        probs = F.sigmoid(self.nodes(x))  # (bs, n_leaves-1)
-        leaf_distr = torch.ones([bs,self.n_leaves]) # (bs, n_leaves)
+        probs = F.sigmoid(self.nodes(x))                                           # (bs, n_leaves-1)
+        leaf_distr = torch.ones([bs,self.n_leaves], device=x.device)               # (bs, n_leaves)
         for d in range(self.depth):
-            layer_probs = probs[:, 2**d-1 : 2**(d+1)-1] # (bs, 2**d)
-            mask = torch.stack((1-layer_probs, layer_probs), dim=2).view(bs, -1) # (bs, 2**(d+1) )
-            leaf_distr = leaf_distr.view(bs, 2**(d+1), -1) * mask[..., None] # (bs, 2**(d+1), n_leaves//2**(d+1) )
+            layer_probs = probs[:, 2**d-1 : 2**(d+1)-1]                            # (bs, 2**d)
+            mask = torch.stack((1-layer_probs, layer_probs), dim=2).view(bs, -1)   # (bs, 2**(d+1) )
+            leaf_distr = leaf_distr.view(bs, 2**(d+1), -1) * mask[..., None]       # (bs, 2**(d+1), n_leaves//2**(d+1) )
+
+        # save distribution for visuals
+        self.leaf_distr = leaf_distr.detach()
         
-        logits = self.act(self.leaves(x)).view(bs,self.n_leaves, -1) # (bs, n_leaves, out_dim)
-        if self.hidden_dim: logits =  self.act(torch.stack([self.leaves_out[i](logits[:,i,:]) for i in range(self.n_leaves)], dim=1))
-        return torch.bmm(logits.view(bs, -1, self.n_leaves), leaf_distr.view(bs, -1,1)).view(bs, -1)
+        logits = self.act(self.leaves(x)).view(bs,self.n_leaves, -1)               # (bs, n_leaves, out_dim/hidden_dim)
+        if self.hidden_dim: logits =  self.act(torch.stack([self.leaves_out[i](logits[:,i,:]) for i in range(self.n_leaves)], dim=1)) # (bs, n_leaves, out_dim)
+        return torch.bmm(logits.transpose(1,2), leaf_distr).squeeze(-1)
+    
+    def eval_forward(self, x):
+        bs = x.shape[0]
+        choices = self.nodes(x)>0 # (bs, n_leaves-1)
+        leaf_distr = torch.zeros((bs,1), dtype=torch.long, device=x.device)
+        for _ in range(self.depth):
+            leaf_distr = 2 * leaf_distr + 1 + choices.gather(1,leaf_distr) # (bs, 1)
+        
+        leaf_distr = leaf_distr.squeeze(-1) - self.n_leaves + 1
+        
+        # save distribution for visuals
+        self.leaf_distr = leaf_distr.detach()
+        
+        w, b = self.leaves.weight.view(self.n_leaves, -1, self.in_dim), self.leaves.bias.view(self.n_leaves, -1)
+        w = torch.index_select(w, 0, leaf_distr.squeeze()) # (bs, in_dim, out_dim/hidden_dim)
+        b = torch.index_select(b, 0, leaf_distr.squeeze()) # (bs, out_dim/hidden_dim)
+        
+        logits = self.act(torch.bmm(w, x[...,None]).squeeze(-1) + b) # (bs, out_dim/hidden_dim)
+        if self.hidden_dim: logits =  self.act(torch.stack([self.leaves_out[b](logits[i]) for i,b in enumerate(leaf_distr)], dim=0))
+        return logits

@@ -46,7 +46,7 @@ class FFFLeavesDistCB(Callback):
     def after_batch(self): 
         if self.training: 
             if self.wandb:  self._wandb_step += 1
-            self.tree_leaves.append(getattr(self.module,self.leaves_attr).argmax(1))
+            self.tree_leaves.append(getattr(self.module,self.leaves_attr).argmax(1).squeeze())
             self.preds.append(self.pred.argmax(1))
             self.xs.append(self.xb[0]), self.ys.append(self.yb[0])
              
@@ -95,7 +95,7 @@ class GetGradCB(Callback):
     
     def after_backward(self):
         for attr in self.attrs:
-            grad = getattr(getattr(self.module, attr, None), 'grad', None)
+            grad = getattr(reduce(getattr,attr.split('.'),self.module), 'grad', None)
             if grad is None: continue
             self.grads[attr].append(torch.clone(grad.detach()))
 
