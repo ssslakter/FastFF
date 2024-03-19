@@ -8,7 +8,7 @@ import math, torch, matplotlib as mpl, matplotlib.pyplot as plt
 from torch import nn
 import matplotlib.colors as mcolors
 from fastai.vision.all import *
-from . import fff, ultrafastbert
+from .imports import fff, ultrafastbert
 
 # %% ../nbs/00_mnist.ipynb 18
 class Activations2D(HookCallback):
