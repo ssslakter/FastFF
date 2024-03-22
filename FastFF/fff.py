@@ -10,14 +10,13 @@ from fastcore.all import *
 
 # %% ../nbs/04_fff.ipynb 4
 class FFF(nn.Module):
-    def __init__(self, in_dim, out_dim, depth, act=nn.ReLU, p=0., hidden_dim = None, bn=False):
+    def __init__(self, in_dim, out_dim, depth, act=nn.ReLU, p=0., hidden_dim = None):
         super().__init__()
         store_attr()
         if p != 0: self.dropout = nn.Dropout(p)
         self.n_leaves = 2**depth
         self.nodes = nn.Linear(in_dim, self.n_leaves-1) if depth!=0 else nn.Identity()
         self.leaves = nn.Linear(in_dim, ifnone(hidden_dim, out_dim)*self.n_leaves)
-        if bn: self.batch_norm = nn.BatchNorm1d(self.n_leaves-1)
         if hidden_dim: self.leaves_out = nn.ModuleList(nn.Linear(hidden_dim, out_dim) for _ in range(self.n_leaves))
         self.act = act() if act else nn.Identity()
  
@@ -26,7 +25,6 @@ class FFF(nn.Module):
     def train_forward(self, x):
         bs = x.shape[0]
         logits = self.nodes(x) # (bs, n_leaves-1)
-        if hasattr(self,'batch_norm'): logits = self.batch_norm(logits)
         if hasattr(self,'dropout'): logits = self.dropout(logits)
         
         logprobs = F.logsigmoid(torch.stack([-logits, logits],dim=2)) # (bs, n_leaves-1, 2)
@@ -46,7 +44,6 @@ class FFF(nn.Module):
     def eval_forward(self, x):
         bs = x.shape[0]
         logits = self.nodes(x)
-        if hasattr(self,'batch_norm'): logits = self.batch_norm(logits)
         choices = logits>0 # (bs, n_leaves-1)
         leaf_distr = torch.zeros((bs,1), dtype=torch.long, device=x.device)
         for _ in range(self.depth):
