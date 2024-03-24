@@ -266,7 +266,7 @@ class FFF(nn.Module):
 			else:
 				current_leaf_usage = current_mixture.sum(dim=0)					# (n_leaves,)
 			self.leaf_usage.data += current_leaf_usage.detach()
-		self.leaves = current_mixture.detach()
+		self.probs = current_mixture.detach()
 		element_logits = torch.matmul(x, self.w1s.transpose(0, 1).flatten(1, 2))			# (batch_size, self.n_leaves * self.leaf_width)
 		element_logits = element_logits.view(batch_size, self.n_leaves, self.leaf_width)	# (batch_size, self.n_leaves, self.leaf_width)
 		element_logits += self.b1s.view(1, *self.b1s.shape)									# (batch_size, self.n_leaves, self.leaf_width)

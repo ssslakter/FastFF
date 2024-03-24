@@ -8,7 +8,7 @@ import math, torch, torch.nn.functional as F
 from torch import nn
 from fastai.vision.all import *
 
-# %% ../nbs/05_moe.ipynb 5
+# %% ../nbs/05_moe.ipynb 3
 def lin(in_dim, out_dim, act=nn.ReLU, bias=True):
     '''Linear layer followed by activation'''
     if act is None: act = nn.Identity
@@ -22,7 +22,7 @@ def mlp(in_dim, out_dim, hidden_dim=128, n_hidden=1, act=nn.ReLU, bias=True):
     res += lin(hidden_dim, out_dim, act, bias)
     return res
 
-# %% ../nbs/05_moe.ipynb 6
+# %% ../nbs/05_moe.ipynb 4
 # benchmark comparing nn.ModuleList and nn.Conv1d https://discuss.pytorch.org/t/parallel-execution-of-modules-in-nn-modulelist/43940/11
 class Experts(nn.ModuleList):
     """A class representing a collection of experts. Will compute weighted sum of results of topk experts depending on `selected_exps`"""
@@ -42,7 +42,7 @@ class Experts(nn.ModuleList):
 
 class MoE(nn.Module):
     '''Mixture of experts network'''
-    def __init__(self, in_dim, out_dim, n_experts=4, top_k=4, hidden_dim=128, act=nn.ReLU):
+    def __init__(self, in_dim, out_dim, n_experts=4, top_k=4, hidden_dim=128, act=nn.ReLU, save_probs=True):
         super().__init__()
         store_attr()
         self.gate = lin(in_dim, n_experts, act=act, bias=False)
@@ -50,18 +50,19 @@ class MoE(nn.Module):
     
     def forward(self,x):
         logits = self.gate(x)
-        routing_weights = F.softmax(logits, dim=1)
-        self.routing_weights = routing_weights
-        routing_weights, selected_exps = torch.topk(routing_weights, self.top_k, dim=-1)
-        routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
-        return self.experts(x, routing_weights, selected_exps)
+        probs = F.softmax(logits, dim=1)
+        if self.save_probs: self.probs = probs
+        probs, selected_exps = torch.topk(probs, self.top_k, dim=-1)
+        probs /= probs.sum(dim=-1, keepdim=True)
+        return self.experts(x, probs, selected_exps)
 
-# %% ../nbs/05_moe.ipynb 7
+# %% ../nbs/05_moe.ipynb 5
 class FFF(MoE):
-    def __init__(self, in_dim, out_dim, depth=2, top_k=4, hidden_dim = 128, act=nn.ReLU):
+    def __init__(self, in_dim, out_dim, depth=2, top_k=4, hidden_dim = 128, act=nn.ReLU, save_probs=True):
+        '''FFF which computes leaves probability distribution during forward'''
         store_attr()
         self.n_leaves = 2**depth
-        super().__init__(in_dim, out_dim, self.n_leaves, top_k, hidden_dim, act)
+        super().__init__(in_dim, out_dim, self.n_leaves, top_k, hidden_dim, act, save_probs)
         # override gate to have size 1 less
         self.gate = lin(in_dim, self.n_leaves-1, act=act, bias=False)
     
@@ -69,22 +70,23 @@ class FFF(MoE):
         bs = x.shape[0]
         logits = self.gate(x)
         logprobs = F.logsigmoid(torch.stack([-logits, logits],dim=2))     # (bs, n_leaves-1, 2)
-        leaf_distr = torch.zeros([bs,self.n_leaves], device=x.device)     # (bs, n_leaves)
+        probs = torch.zeros([bs,self.n_leaves], device=x.device)     # (bs, n_leaves)
         for d in range(self.depth):
             mask = logprobs[:, 2**d-1 : 2**(d+1)-1].view(bs,-1, 1)        # (bs, 2*2**d, 1)
-            leaf_distr = leaf_distr.view(bs, 2**(d+1), -1) + mask         # (bs, 2**(d+1), n_leaves//2**(d+1) )
-        leaf_distr = torch.exp(leaf_distr).view(bs, -1)
-        self.leaf_distr = leaf_distr.detach()
-        routing_weights, selected_exps = torch.topk(leaf_distr, self.top_k, dim=-1)
+            probs = probs.view(bs, 2**(d+1), -1) + mask         # (bs, 2**(d+1), n_leaves//2**(d+1) )
+        probs = torch.exp(probs).view(bs, -1)
+        if self.save_probs: self.probs = probs.detach()
+        routing_weights, selected_exps = torch.topk(probs, self.top_k, dim=-1)
         return self.experts(x, routing_weights, selected_exps)
 
-# %% ../nbs/05_moe.ipynb 8
+# %% ../nbs/05_moe.ipynb 6
 class InitFFF(MoE):
-    def __init__(self, in_dim, out_dim, depth=2, top_k=4, hidden_dim = 128, act=nn.ReLU):
+    '''FFF which uses precomputed matrix for leaves distribution'''
+    def __init__(self, in_dim, out_dim, depth=2, top_k=4, hidden_dim = 128, act=nn.ReLU, save_probs=True):
         store_attr()
         self.n_leaves = 2**depth
         self.tree = self.init_tree_()
-        super().__init__(in_dim, out_dim, self.n_leaves, top_k, hidden_dim, act)
+        super().__init__(in_dim, out_dim, self.n_leaves, top_k, hidden_dim, act, save_probs)
         # override gate to have size 1 less
         self.gate = lin(in_dim, self.n_leaves-1, act=act, bias=False)
     
@@ -97,7 +99,7 @@ class InitFFF(MoE):
         bs = x.shape[0]
         logits = self.gate(x)
         logprobs = F.logsigmoid(torch.stack([-logits, logits],dim=2).view(bs,-1))     # (bs, 2*n_leaves-2)
-        leaf_distr = torch.exp(torch.matmul(logprobs, self.tree))
-        self.leaf_distr = leaf_distr.detach()
-        routing_weights, selected_exps = torch.topk(leaf_distr, self.top_k, dim=-1)
+        probs = torch.exp(torch.matmul(logprobs, self.tree))
+        if self.save_probs: self.probs = probs.detach()
+        routing_weights, selected_exps = torch.topk(probs, self.top_k, dim=-1)
         return self.experts(x, routing_weights, selected_exps)
