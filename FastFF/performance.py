@@ -12,7 +12,7 @@ from torchvision.datasets import MNIST
 
 # %% ../nbs/02_performance.ipynb 7
 FLATTEN_TFM = T.Lambda(lambda x: x.view(-1,28*28).squeeze())
-def get_mnist_dls(bs=256, tfms=FLATTEN_TFM, num_workers=None):
+def get_mnist_dls(bs=256, num_workers=None, tfms=FLATTEN_TFM):
     mean, std = 0.130652368068695068, 0.307504087686538696
     tfms = tfms if isinstance(tfms,list) else [tfms]
     tfm = T.Compose([T.ToTensor(),T.Normalize((mean,), (std,)), *tfms])
@@ -20,7 +20,7 @@ def get_mnist_dls(bs=256, tfms=FLATTEN_TFM, num_workers=None):
     test = MNIST('../data', train=False, download=True, transform=tfm)
     return DataLoaders(TfmdDL(train, bs, True, num_workers),TfmdDL(test, bs, False, num_workers))
 
-# %% ../nbs/02_performance.ipynb 10
+# %% ../nbs/02_performance.ipynb 9
 def runs_sweep(sweep_cfg:dict, project=None, count=5, sweep_name=None):
     '''returns a decorator that runs a function in a sweep, first argument will be sweep_cfg initialized by wandb'''
     sweep_cfg['name'] = sweep_cfg.get('name', sweep_name)
@@ -33,7 +33,7 @@ def runs_sweep(sweep_cfg:dict, project=None, count=5, sweep_name=None):
         wandb.agent(sweep_id, run, count=count)
     return _f
 
-# %% ../nbs/02_performance.ipynb 16
+# %% ../nbs/02_performance.ipynb 15
 class ProbsDistrCB(Callback):
     '''Gets probability distribution of module on train set and logs to wandb if enabled'''
     def __init__(self, probs_attr='probs', wandb=False, module=None, sample_size=30):
@@ -51,11 +51,11 @@ class ProbsDistrCB(Callback):
     def after_batch(self): 
         if not self.training: return
         if self.wandb:  self._wandb_step += 1
-        
+        if not hasattr(self, 'n_blocks'): self.n_blocks = getattr(self.module, self.probs_attr).squeeze().shape[-1]
+
         self.blocks.append(getattr(self.module, self.probs_attr).argmax(1).squeeze())
         self.ys.append(self.yb[0])
         if self.epoch == self.n_epoch-1:
-            if not hasattr(self, 'n_blocks'): self.n_blocks = getattr(self.module, self.probs_attr).shape[-1]
             self.xs.append(self.xb[0])
             self.preds.append(self.pred.argmax(1))
 
@@ -91,7 +91,7 @@ class ProbsDistrCB(Callback):
              ax.legend(); plt.show()
 
 
-# %% ../nbs/02_performance.ipynb 18
+# %% ../nbs/02_performance.ipynb 17
 class GetGradCB(Callback):
     '''Get grads from modules'''
     def __init__(self, modules: list): self.modules = modules
@@ -125,7 +125,7 @@ def smooth_avg(tensor, dim=0, beta=0.95):
     fr = 1-beta**torch.arange(1,res.shape[0]+1)
     return (res.swapaxes(0,-1)/fr).swapaxes(0, -1).swapaxes(0, dim)
 
-# %% ../nbs/02_performance.ipynb 34
+# %% ../nbs/02_performance.ipynb 33
 @patch
 def show_all_epochs(cb: ProbsDistrCB, n_epoch, ncols=None):
         n_epoch = 10
