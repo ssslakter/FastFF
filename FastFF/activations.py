@@ -12,17 +12,18 @@ from .imports import fff, ultrafastbert
 
 # %% ../nbs/01_mnist.ipynb 18
 class Activations2D(HookCallback):
-    def __init__(self, module = None, **kwargs):
+    def __init__(self, module = None, on_train=False, **kwargs):
+        self.on_train = on_train
         super().__init__([module], **kwargs)
         
-    def before_fit(self):
-        super().before_fit()
+    def before_epoch(self):
         self.activations, self.targets = [], []
     
     def hook(self, m, i, o): return o
     
     def after_batch(self):
         '''Store activations and targets for batch'''
+        if self.training ^ self.on_train: return
         self.activations.append(self.hooks.stored[0])
         self.targets.append(self.yb[0])
         
@@ -30,34 +31,35 @@ class Activations2D(HookCallback):
         self.activations, self.targets = torch.cat(self.activations), torch.cat(self.targets)
         super().after_fit()
     
-    def show_acts(self, prj_idxs=(0,1), ax=None, figsize=(10,5), alpha=0.6, s=5, cmap='tab10', **kwargs):
+    def show_acts(self, normalize=noop, prj_idxs=(0,1), ax=None, figsize=(10,5), alpha=0.6, s=5, cmap='tab10', **kwargs):
         if ax is None: _, ax = plt.subplots(figsize=figsize)
-        u = self.targets.unique()
+        targets = normalize(self.targets)
+        u = targets.unique()
         norm = mpl.colors.Normalize(vmin=0, vmax=len(u)-1)
         if not isinstance(cmap,mcolors.Colormap): cmap = plt.get_cmap(cmap)
         colors = cmap(norm(range(len(u))))
         for col, l in zip(colors,u):
-            xs = self.activations[self.targets==l]
+            xs = self.activations[targets==l]
             ax.scatter(xs[:,prj_idxs[0]], xs[:,prj_idxs[1]], alpha=alpha, color=col, label=l.item(), s=s, **kwargs)
-        ax.set_title('2D activations')
         ax.legend()
 
 # %% ../nbs/01_mnist.ipynb 26
 def num_params(model): return sum(p.numel() for p in model.parameters())
 
-# %% ../nbs/01_mnist.ipynb 31
+# %% ../nbs/01_mnist.ipynb 30
 class LeavesColors(Activations2D):
-    '''Gets points from `module` output and colors from `fff_module` corresponding to leaves'''
-    def __init__(self, module = None, fff_module = None, **kwargs):
-        assert isinstance(fff_module,fff.FFF)
-        self.fff_module = fff_module
+    '''Gets points from `module` output and colors from `gate_module` corresponding to leaves'''
+    def __init__(self, module = None, gate_module = None,  attr='probs', **kwargs):
+        self.attr = attr
+        self.gate_module = gate_module
         super().__init__(module, **kwargs)
     def after_batch(self):
         '''Store activations and targets for batch'''
+        if self.training ^ self.on_train: return
         self.activations.append(self.hooks.stored[0])
-        self.targets.append(self.fff_module.leaves)
+        self.targets.append(getattr(self.gate_module, self.attr))
 
-# %% ../nbs/01_mnist.ipynb 43
+# %% ../nbs/01_mnist.ipynb 42
 def conv(ni, nf, ks=3, stride=2, act=nn.PReLU):
     res = nn.Conv2d(ni, nf, stride=stride, kernel_size=ks, padding=ks//2)
     if act: res = nn.Sequential(res, act())
