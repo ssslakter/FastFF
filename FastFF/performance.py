@@ -20,20 +20,20 @@ def get_mnist_dls(bs=256, num_workers=None, tfms=FLATTEN_TFM):
     test = MNIST('../data', train=False, download=True, transform=tfm)
     return DataLoaders(TfmdDL(train, bs, True, num_workers),TfmdDL(test, bs, False, num_workers))
 
-# %% ../nbs/02_performance.ipynb 10
+# %% ../nbs/02_performance.ipynb 9
 def runs_sweep(sweep_cfg:dict, project=None, count=5, sweep_name=None, sweep_id=None):
     '''returns a decorator that runs a function in a sweep, first argument will be sweep_cfg initialized by wandb'''
     sweep_cfg['name'] = sweep_cfg.get('name', sweep_name)
     def _f(fn, *args, **kwargs):
         def run():
-            wandb.init()
-            fn(wandb.config, *args,**kwargs)
+            with wandb.init() as run:
+                fn(wandb.config, run, *args,**kwargs)
         nonlocal sweep_id
         if sweep_id is None: sweep_id = wandb.sweep(sweep_cfg, project=project)
         wandb.agent(sweep_id, run, count=count)
     return _f
 
-# %% ../nbs/02_performance.ipynb 11
+# %% ../nbs/02_performance.ipynb 10
 class TinyWandbCallback(WandbCallback): pass
 
 @patch
@@ -59,7 +59,7 @@ def gather_args(self:Learner):
         args['dls.after_batch'] = f'{self.dls.after_batch}'
     return args
 
-# %% ../nbs/02_performance.ipynb 17
+# %% ../nbs/02_performance.ipynb 16
 class ProbsDistrCB(Callback):
     '''Gets probability distribution of module on train set and logs to wandb if enabled'''
     def __init__(self, probs_attr='probs', wandb=False, module=None, sample_size=30):
@@ -117,7 +117,7 @@ class ProbsDistrCB(Callback):
              ax.legend(); plt.show()
 
 
-# %% ../nbs/02_performance.ipynb 19
+# %% ../nbs/02_performance.ipynb 18
 class GetGradCB(Callback):
     '''Get grads from modules'''
     def __init__(self, modules: list): self.modules = modules
@@ -151,7 +151,7 @@ def smooth_avg(tensor, dim=0, beta=0.95):
     fr = 1-beta**torch.arange(1,res.shape[0]+1)
     return (res.swapaxes(0,-1)/fr).swapaxes(0, -1).swapaxes(0, dim)
 
-# %% ../nbs/02_performance.ipynb 35
+# %% ../nbs/02_performance.ipynb 34
 @patch
 def show_all_epochs(cb: ProbsDistrCB, n_epoch, ncols=None):
         n_epoch = 10
