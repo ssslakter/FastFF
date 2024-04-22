@@ -24,7 +24,7 @@ def mlp(in_dim, out_dim, hidden_dim=128, n_hidden=1, act=nn.ReLU, bias=True):
     if n_hidden==0: return lin(in_dim, out_dim, act, bias)
     res = nn.Sequential(*lin(in_dim, hidden_dim, act, bias))
     for _ in range(n_hidden-1): res+= lin(hidden_dim, hidden_dim, act, bias)
-    res += lin(hidden_dim, out_dim, act, bias)
+    res += lin(hidden_dim, out_dim, None, bias)
     return res
 
 # %% ../../nbs/05_moe.ipynb 4
@@ -50,7 +50,7 @@ class MoE(nn.Module):
     def __init__(self, in_dim, out_dim, n_experts=4, top_k=4, hidden_dim=128, act=nn.ReLU, save_probs=True):
         super().__init__()
         store_attr()
-        self.gate = lin(in_dim, n_experts, act=act, bias=False)
+        self.gate = lin(in_dim, n_experts, act=None, bias=False)
         self.experts = Experts(mlp(in_dim,out_dim, hidden_dim, act=act) for _ in range(n_experts))
     
     def forward(self,x):
