@@ -10,7 +10,8 @@ conda/
 _site/
 _docs/
 test_settings.ini
-**/wandb
+/wandb
+/nbs/wandb
 .history
 *.bak
 .gitattributes
