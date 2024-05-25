@@ -11,7 +11,9 @@ _site/
 _docs/
 test_settings.ini
 /wandb
+/experiments/wandb
 /nbs/wandb
+tracing
 .history
 *.bak
 .gitattributes
