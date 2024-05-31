@@ -27,8 +27,11 @@ class ExpertsBase(nn.Module):
 
 class TopkExperts(ExpertsBase):
     def forward(self, x: torch.Tensor, probs: torch.Tensor = None, indices: torch.Tensor = None):
+        if indices is None: probs, indices = torch.topk(probs, self.n_exp)
+        elif len(indices.shape) == 1: indices = indices[:, None]
         x = torch.einsum('bx,bkyx -> bky', x, self.w1[indices])
         x = torch.einsum('bkx,bkyx -> bky', self.act(x), self.w2[indices])
+        if probs is None: return x.squeeze(1)
         return torch.einsum('bky,bk -> by', x, probs)
 
 
