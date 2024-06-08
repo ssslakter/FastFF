@@ -135,7 +135,9 @@ def system_startup(cfg):
         log.setLevel(logging.INFO if is_main_process() else logging.ERROR)
     else:
         threads_per_gpu = max(1, min(allowed_cpus_available, cfg.impl.threads))
-        global_rank = local_rank = 0
+        local_rank = cfg.impl.local_rank
+        if local_rank is None: local_rank=0
+        global_rank = local_rank
 
     torch.set_num_threads(threads_per_gpu)
     os.environ["OMP_NUM_THREADS"] = str(threads_per_gpu)

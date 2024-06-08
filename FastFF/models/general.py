@@ -129,6 +129,6 @@ class GeneralMoE(nn.Module):
     def forward(self, x: torch.Tensor):
         probs, indices = self.gate(x)
         if self.save_probs:
-            if probs is not None: self.probs = probs.detach()
+            if probs is not None and probs.shape[-1]!=1: self.probs = probs.detach()
             else: self.probs = F.one_hot(indices.detach(), self.experts.n_exp)
         return self.experts(x, probs, indices)

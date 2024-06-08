@@ -25,6 +25,7 @@ from .components import (
 )
 from .attention import get_attention_mechanism
 from .fff import FFF
+from .moe import MoE
 
 class crammedBertConfig(PretrainedConfig):
     model_type = "crammedBERT"
@@ -110,6 +111,15 @@ class TransformerLayer(torch.nn.Module):
                 cfg_arch.hidden_size,
                 cfg_arch.intermed_depth,
                 cfg_arch.intermed_size,
+                _get_nonlin_fn(cfg_arch.nonlin),
+            )
+        elif cfg_arch.intermed_type=='moe':
+            self.ffn = MoE(
+                cfg_arch.hidden_size,
+                cfg_arch.hidden_size,
+                cfg_arch.intermed_size,
+                2**cfg_arch.intermed_depth,
+                cfg_arch.intermed_depth,
                 _get_nonlin_fn(cfg_arch.nonlin),
             )
         else:

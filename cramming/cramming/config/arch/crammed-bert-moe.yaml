@@ -7,13 +7,16 @@ architectures:
 
 num_transformer_layers: 16
 hidden_size: 768
-intermed_size: 3072
+intermed_size: 128
 hidden_dropout_prob: 0.1
-intermed_type: 'ff'
+# FFF or MoE
+intermed_depth: 4
+intermed_type: 'moe'
+
 norm: LayerNorm
 norm_eps: 1e-12
 norm_scheme: pre #"pre" is baked into the new implementation
-nonlin: GELUglu
+nonlin: GELU
 
 tie_weights: True # Tie input/output embedding
 decoder_bias: False # Whether to include a bias in the decoding step

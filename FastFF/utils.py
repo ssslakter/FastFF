@@ -72,7 +72,7 @@ def gather_args(self:Learner):
 # %% ../nbs/02_utils.ipynb 9
 class ProbsDistrCB(Callback):
     '''Gets probability distribution of module on train set and logs to wandb if enabled'''
-    def __init__(self, probs_attr='probs', wandb=False, module=None, sample_size=30):
+    def __init__(self, probs_attr='probs', wandb=False, module=None, sample_size=30, image_shape=(28,28)):
         store_attr()
  
     def before_fit(self): 
@@ -89,7 +89,7 @@ class ProbsDistrCB(Callback):
         if self.wandb:  self._wandb_step += 1
         if not hasattr(self, 'n_blocks'): self.n_blocks = getattr(self.module, self.probs_attr).squeeze().shape[-1]
 
-        self.blocks.append(getattr(self.module, self.probs_attr).argmax(1).squeeze())
+        self.blocks.append(getattr(self.module, self.probs_attr).squeeze().argmax(1))
         self.ys.append(self.yb[0])
         if self.epoch == self.n_epoch-1:
             self.xs.append(self.xb[0])
@@ -112,7 +112,7 @@ class ProbsDistrCB(Callback):
         idx = torch.randperm(len(self.xs))[:self.sample_size]
         bs, xs, ps, ys = self.all_blocks[-1][idx], self.xs[idx], self.preds[idx], self.all_ys[-1][idx]
         cols = ['block','image','pred','target']
-        data = [[b, wandb.Image(x.view(28,28)), p, y] for b,x,p,y in zip(bs,xs,ps,ys)]
+        data = [[b, wandb.Image(x.view(self.image_shape)), p, y] for b,x,p,y in zip(bs,xs,ps,ys)]
         wandb.log({"samples": wandb.Table(data=data, columns=cols)})
     
     def show(self, epoch_idx, ax=None, figsize=(8,6), show=True):
