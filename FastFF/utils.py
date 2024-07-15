@@ -40,7 +40,7 @@ def runs_sweep(sweep_cfg:dict, project=None, count=5, sweep_name=None, sweep_id=
                 fn(wandb.config, run, *args,**kwargs)
         nonlocal sweep_id
         if sweep_id is None: sweep_id = wandb.sweep(sweep_cfg, project=project)
-        wandb.agent(sweep_id, run, count=count)
+        wandb.agent(sweep_id, run, project=project, count=count)
     return _f
 
 # %% ../nbs/02_utils.ipynb 7

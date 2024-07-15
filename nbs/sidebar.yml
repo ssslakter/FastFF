@@ -2,7 +2,14 @@ website:
   sidebar:
     contents:
       - index.ipynb
-      - 00_mnist.ipynb
-      - 01_tree.ipynb
-      - 02_performance.ipynb
-      - 03_moe.ipynb
+      - 00_models.ipynb
+      - 01.1_tree.ipynb
+      - 01_mnist.ipynb
+      - 02.1_performance.ipynb
+      - 02_utils.ipynb
+      - 03_ufbert.ipynb
+      - 04_fff.ipynb
+      - 05_moe.ipynb
+      - 06_moe_experiments.ipynb
+      - 07_region_leak.ipynb
+      - 08_hypercube.ipynb
