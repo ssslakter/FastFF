@@ -40,7 +40,7 @@ The main results are:
 <figure>
 <img width="500" src="images/distr.png" id="jupyter"/>
 <figcaption>
-Distribution of data between $2^4$ experts for classification task with
+Distribution of data between 16 experts for classification task with
 10 classes
 </figcaption>
 </figure>
